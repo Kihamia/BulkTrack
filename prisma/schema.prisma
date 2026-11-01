@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role { ADMIN BRANCH_MANAGER STOREKEEPER }
+enum InvoiceStatus { PENDING PARTIALLY_DELIVERED FULLY_DELIVERED }
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  warehouseId  String?
+  warehouse    Warehouse? @relation(fields: [warehouseId], references: [id])
+  transactions DeliveryTransaction[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Warehouse {
+  id        String @id @default(cuid())
+  name      String @unique
+  code      String @unique
+  users     User[]
+  invoices  Invoice[]
+  createdAt DateTime @default(now())
+}
+
+model Invoice {
+  id             String @id @default(cuid())
+  invoiceNumber  String @unique
+  customerName   String
+  invoiceDate    DateTime
+  dueDate        DateTime?
+  status         InvoiceStatus @default(PENDING)
+  warehouseId    String
+  warehouse      Warehouse @relation(fields: [warehouseId], references: [id])
+  items          InvoiceItem[]
+  transactions   DeliveryTransaction[]
+  sourceSystem   String @default("MANUAL")
+  externalRef    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model InvoiceItem {
+  id          String @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productCode String?
+  description String
+  unit        String
+  orderedQty  Decimal @db.Decimal(14, 3)
+  deliveries  DeliveryLine[]
+}
+
+model DeliveryTransaction {
+  id          String @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id])
+  userId      String
+  user        User @relation(fields: [userId], references: [id])
+  warehouseId String
+  reference   String? @unique
+  note        String?
+  lines       DeliveryLine[]
+  createdAt   DateTime @default(now())
+}
+
+model DeliveryLine {
+  id            String @id @default(cuid())
+  transactionId String
+  transaction   DeliveryTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  invoiceItemId String
+  invoiceItem   InvoiceItem @relation(fields: [invoiceItemId], references: [id])
+  quantity      Decimal @db.Decimal(14, 3)
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  title      String
+  message    String
+  severity   String   @default("INFO")
+  warehouseId String?
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+}
